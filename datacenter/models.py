@@ -26,6 +26,7 @@ class Speaker(models.Model):
     class Meta:
         ordering = ('name',)
         verbose_name = 'Спикер'
+        verbose_name_plural = 'Спикеры'
 
     def __str__(self):
         return self.title
