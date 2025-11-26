@@ -45,29 +45,74 @@ class SpeakerAdmin(admin.ModelAdmin):
 
 @admin.register(Speech)
 class SpeechAdmin(admin.ModelAdmin):
-    list_display = [
-       'title',
-       'speaker',
-       'event',
-       'start_time',
-       'end_time',
-       'is_active'
-    ]
-    list_filter = ['event', 'is_active']
+    list_display = ('title', 'speaker', 'event', 'start_time', 'is_active')
+    list_filter = ('is_active', 'event', 'speaker')
+    search_fields = ('title', 'description')
+    date_hierarchy = 'start_time'
+    ordering = ('-start_time',)
+
+    fieldsets = (
+        ('Основная информация', {
+            'fields': ('title', 'description', 'speaker', 'event')
+        }),
+        ('Время проведения', {
+            'fields': ('start_time', 'end_time')
+        }),
+        ('Статус', {
+            'fields': ('is_active',)
+        }),
+    )
 
 
 @admin.register(Participant)
 class ParticipantAdmin(admin.ModelAdmin):
-    list_display = ['full_name', 'company', 'position', 'registered_at']
-    serch_fields = ['full_name', 'company']
+    list_display = ('get_display_name', 'telegram_id', 'company', 'position', 'questions_count', 'registered_at')
+    search_fields = ('full_name', 'username', 'company')
+    list_filter = ('experience', 'registered_at')
+    date_hierarchy = 'registered_at'
+
+    fieldsets = (
+        ('Основная информация', {
+            'fields': ('full_name', 'username', 'telegram_id')
+        }),
+        ('Профессиональная информация', {
+            'fields': ('company', 'position', 'experience')
+        }),
+    )
+
+    def get_display_name(self, obj):
+        return obj.full_name or f"@{obj.username}" or str(obj.telegram_id)
+
+    get_display_name.short_description = 'Имя участника'
 
 
 @admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
-    list_display = ['participant', 'speech', 'created_at', 'is_answered']
-    list_filter = ['speech', 'is_answered']
+    list_display = ('get_short_text', 'participant', 'speech', 'created_at', 'is_answered')
+    list_filter = ('is_answered', 'speech', 'created_at')
+    search_fields = ('question_text', 'participant__full_name')
+    date_hierarchy = 'created_at'
+    list_editable = ('is_answered',)
+
+    fieldsets = (
+        ('Вопрос', {
+            'fields': ('question_text', 'speech', 'participant')
+        }),
+        ('Статус', {
+            'fields': ('is_answered',)
+        }),
+    )
+
+    def get_short_text(self, obj):
+        return obj.question_text[:50] + '...' if len(obj.question_text) > 50 else obj.question_text
+
+    get_short_text.short_description = 'Текст вопроса'
 
 
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
-    list_display = ['participant', 'event', 'subscribed_at']
+    list_display = ('participant', 'event', 'subscribed_at')
+    list_filter = ('event', 'subscribed_at')
+    search_fields = ('participant__full_name', 'participant__username', 'event__title')
+    date_hierarchy = 'subscribed_at'
+    readonly_fields = ('subscribed_at',)
