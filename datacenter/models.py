@@ -86,7 +86,7 @@ class Question(models.Model):
         verbose_name_plural = 'Вопросы'
 
     def __str__(self):
-        return self.title
+        return f"Question to {self.speech.title}: {self.question_text[:50]}..."
 
 
 class Subscription(models.Model):
