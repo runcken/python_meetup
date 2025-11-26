@@ -11,8 +11,20 @@ from .models import (
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
-    list_display = ['title', 'date', 'is_active']
-    list_filter = ['is_active', 'date']
+    list_display = ('title', 'date', 'is_active', 'created_at')
+    list_filter = ('is_active', 'date', 'created_at')
+    search_fields = ('title', 'description')
+    date_hierarchy = 'date'
+    ordering = ('-date',)
+
+    fieldsets = (
+        ('Основная информация', {
+            'fields': ('title', 'description', 'date')
+        }),
+        ('Статус', {
+            'fields': ('is_active',)
+        }),
+    )
 
 
 @admin.register(Speaker)
