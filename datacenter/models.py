@@ -59,7 +59,7 @@ class Speech(models.Model):
         verbose_name_plural = 'Презентации'
 
     def __str__(self):
-        return self.title
+        return f'{self.title} - {self.speaker.name}'
 
 
 class Participant(models.Model):
@@ -117,3 +117,4 @@ class Subscription(models.Model):
 
     def __str__(self):
         return f"{self.participant.full_name or self.participant.telegram_id} → {self.event.title}"
+        

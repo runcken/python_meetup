@@ -1,8 +1,8 @@
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import CallbackContext, CommandHandler, MessageHandler, Filters
-from .talks import start_ask_question, handle_question_if_waiting, show_schedule
-from .networking import start_networking, handle_networking_message_if_active
-from .donations import start_donation, handle_donation_message_if_active
+from tg_bot.talks import start_ask_question, handle_question_if_waiting, show_schedule
+from tg_bot.networking import start_networking, handle_networking_message_if_active
+from tg_bot.donations import start_donation, handle_donation_message_if_active
 
 MAIN_MENU_KEYBOARD = ReplyKeyboardMarkup(
     [

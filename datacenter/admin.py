@@ -11,7 +11,7 @@ from .models import (
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
-    list_display = ('title', 'date', 'is_active', 'created_at')
+    list_display = ('title', 'date', 'created_at')
     list_filter = ('is_active', 'date', 'created_at')
     search_fields = ('title', 'description')
     date_hierarchy = 'date'
@@ -45,7 +45,7 @@ class SpeakerAdmin(admin.ModelAdmin):
 
 @admin.register(Speech)
 class SpeechAdmin(admin.ModelAdmin):
-    list_display = ('title', 'speaker', 'event', 'start_time', 'is_active')
+    list_display = ('title', 'speaker', 'event', 'start_time')
     list_filter = ('is_active', 'event', 'speaker')
     search_fields = ('title', 'description')
     date_hierarchy = 'start_time'

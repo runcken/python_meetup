@@ -1,6 +1,9 @@
 from telegram import Update
 from telegram.ext import CallbackContext
 
+from datacenter.models import Participant
+
+
 DONATION_STATE_KEY = "donation_state"
 DONATION_AMOUNT_KEY = "donation_amount"
 
@@ -59,13 +62,24 @@ def handle_donation_message_if_active(update: Update, context: CallbackContext) 
 
     user = update.effective_user
 
-    # TODO: здесь должен быть вызов Django API или Telegram Payments:
-    # api_client.create_donation(telegram_id=user.id, amount=amount)
-    # или send_invoice(...) с provider_token и т.д.
-    print(f"[DONATION INTENT] from {user.id} (@{user.username}): {amount} RUB")
+    try:
+        participant, created = Participant.objects.get_or_create(
+            telegram_id=user.id,
+            defaults={
+                "username": user.username,
+                "full_name": f"{user.first_name} {user.last_name or ''}".strip()
+            }
+        )
+        print(f"[DONATION INTENT] from {user.id} (@{user.username}): {amount} RUB")
 
-    update.message.reply_text(
-        f"Спасибо! Ты выбрал(а) поддержать митап на {amount} ₽\n\n"
-    )
-
+        update.message.reply_text(
+            f"Спасибо! Ты выбрал(а) поддержать митап на {amount} ₽\n\n"
+            "Ссылка для оплаты: https://example.com/donation\n"
+        )
+    except Exception as e:
+        print(f"Error saving donation: {e}")
+        update.message.reply_text(
+            "Произошла ошибка при обработке доната. Попробуйте позже"
+        )
+    
     return True
