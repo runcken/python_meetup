@@ -5,7 +5,8 @@ from .models import (
     Speech,
     Participant,
     Question,
-    Subscription
+    Subscription,
+    Donation
 )
 
 
@@ -116,3 +117,9 @@ class SubscriptionAdmin(admin.ModelAdmin):
     search_fields = ('participant__full_name', 'participant__username', 'event__title')
     date_hierarchy = 'subscribed_at'
     readonly_fields = ('subscribed_at',)
+
+
+@admin.register(Donation)
+class DonationAdmin(admin.ModelAdmin):
+    list_display = ('participant', 'amount', 'created_at')
+    list_filter = ('created_at',)
