@@ -2,7 +2,7 @@ from django.utils import timezone
 from telegram import Update
 from telegram.ext import CallbackContext
 
-from datacenter.models import Participant, Question, Speech, Event
+from datacenter.models import Event, Speech, Speaker, Participant, Question
 
 
 def start_ask_question(update: Update, context: CallbackContext) -> None:
@@ -102,7 +102,7 @@ def show_schedule(update: Update, context: CallbackContext) -> None:
                 status = "Будет"
             else:
                 status = "Завершено"
-            schedule_text += f"{status}, {speech.start_time.strftime("%H:%M")}-{speech.end_time.strftime("%H:%M")}\n"
+            schedule_text += f"{status}, {speech.start_time.strftime('%H:%M')}-{speech.end_time.strftime('%H:%M')}\n"
             schedule_text += f"спикер - {speech.speaker.name}\n"
             schedule_text += f"тема: {speech.title}\n\n"
 
@@ -124,4 +124,74 @@ def get_active_speech():
     except Exception as e:
         print(f"Error getting active speech: {e}")
         return None
-    
+
+
+def show_speaker_questions(update: Update, context: CallbackContext) -> None:
+    user = update.effective_user
+    telegram_id = user.id
+
+    speaker = Speaker.objects.filter(telegram_id=telegram_id).first()
+    if not speaker:
+        update.message.reply_text(
+            "Эта команда доступна только спикерам.\n"
+            "Если ты докладчик, но не видишь свои вопросы, "
+            "скажи организатору, чтобы он привязал твой Telegram к профилю спикера."
+        )
+        return
+
+    event = Event.objects.filter(is_active=True).first()
+
+    speech = None
+
+    active_speech = get_active_speech()
+    if active_speech and active_speech.speaker_id == speaker.id:
+        speech = active_speech
+
+    if not speech and event:
+        speech = (
+            Speech.objects.filter(event=event, speaker=speaker)
+            .order_by("-start_time")
+            .first()
+        )
+
+    if not speech:
+        update.message.reply_text(
+            "Я не нашёл твоих докладов в текущем мероприятии.\n"
+            "Проверь, что в админке ты привязан как спикер к нужному выступлению."
+        )
+        return
+
+    questions = (
+        Question.objects.filter(speech=speech)
+        .select_related("participant")
+        .order_by("created_at")
+    )
+
+    if not questions.exists():
+        update.message.reply_text(
+            f"К докладу «{speech.title}» пока нет вопросов.\n"
+            "Можешь открыть бот ещё раз позже, они появятся к концу выступления."
+        )
+        return
+
+    header = (
+        f"Вопросы к твоему докладу:\n"
+        f"«{speech.title}»\n\n"
+    )
+
+    lines = []
+    for index, question in enumerate(questions, start=1):
+        participant = question.participant
+        username = participant.username or "ник не указан"
+        name = participant.full_name or username
+
+        contact = f"@{username}" if participant.username else "контакт: ник не указан"
+
+        lines.append(
+            f"{index}. От {name} ({contact}):\n"
+            f"   {question.question_text}\n"
+        )
+
+    text = header + "\n".join(lines)
+
+    update.message.reply_text(text)
