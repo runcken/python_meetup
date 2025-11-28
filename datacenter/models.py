@@ -71,6 +71,13 @@ class Participant(models.Model):
     experience = models.CharField(max_length=100, blank=True)
     registered_at = models.DateTimeField(auto_now_add=True)
 
+    looking_for = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Кого ищет",
+        help_text="Например: 'Ищу Python-разработчика' или 'Ищу инвестора'"
+    )
+
     @property
     def questions_count(self):
         return self.question_set.count()
@@ -117,4 +124,17 @@ class Subscription(models.Model):
 
     def __str__(self):
         return f"{self.participant.full_name or self.participant.telegram_id} → {self.event.title}"
+
+
+class Donation(models.Model):
+    participant = models.ForeignKey(Participant, on_delete=models.CASCADE, verbose_name="Кто задонатил")
+    amount = models.IntegerField(verbose_name="Сумма (руб)")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата и время")
+
+    class Meta:
+        verbose_name = "Донат"
+        verbose_name_plural = "Донаты"
+
+    def __str__(self):
+        return f"{self.amount}₽ от {self.participant}"
         
