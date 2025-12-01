@@ -92,40 +92,73 @@ def _format_datetime(dt):
     return local_dt.strftime("%d.%m.%Y %H:%M")
 
 
+def _get_speech_status(speech):
+    now = timezone.now()
+    if speech.start_time <= now <= speech.end_time:
+        return "СЕЙЧАС"
+    elif now < speech.start_time:
+        return "Будет"
+    else:
+        return "Завершено"
+
+
 def show_schedule(update: Update, context: CallbackContext) -> None:
     try:
-        event = Event.objects.filter(is_active=True).first()
-        if not event:
+        active_events = Event.objects.filter(is_active=True).order_by("date")
+        if not active_events.exists():
             update.message.reply_text("В данный момент нет активных событий")
             return
+        
+        messages = []
 
-        speeches = Speech.objects.filter(event=event).select_related("speaker").order_by("start_time")
-
-        if not speeches:
-            update.message.reply_text(
-                "Программа выступлений пока не доступна"
-            )
+        for event in active_events:
+            speeches = Speech.objects.filter(event=event).select_related("speaker").order_by("start_time")
+            
+            if not speeches.exists():
+                continue
+            
+            event_text = f"*{event.title}*\n"
+            event_text += f"Дата: {_format_datetime(event.date)}\n"
+            event_text += f"Участников: {event.total_participants} | Выступлений: {event.total_speeches}\n\n"
+            
+            for idx, speech in enumerate(speeches, 1):
+                status = _get_speech_status(speech)
+                event_text += f"{idx}. {status}\n"
+                event_text += f"{_format_time(speech.start_time)} - {_format_time(speech.end_time)}\n"
+                event_text += f"Спикер: {speech.speaker.name}\n"
+                event_text += f"Тема: *{speech.title}*\n"        
+                event_text += "\n"
+            
+            messages.append(event_text)
+        
+        if not messages:
+            update.message.reply_text("У активных мероприятий пока нет запланированных выступлений")
             return
-
-        schedule_text = f"Программа: {event.title}\n\n"
-
-        for speech in speeches:
-            now = timezone.now()
-            if speech.start_time <= now <= speech.end_time:
-                status = "Сейчас"
-            elif now < speech.start_time:
-                status = "Будет"
+        
+        for message in messages:
+            if len(message) > 4096:
+                parts = []
+                lines = message.split('\n')
+                current_part = ""
+                
+                for line in lines:
+                    if len(current_part) + len(line) + 1 < 4096:
+                        current_part += line + '\n'
+                    else:
+                        parts.append(current_part)
+                        current_part = line + '\n'
+                
+                if current_part:
+                    parts.append(current_part)
+                
+                for part in parts:
+                    update.message.reply_text(part, parse_mode='Markdown')
             else:
-                status = "Завершено"
-            schedule_text += f"{status}, {_format_datetime(speech.start_time)}-{_format_time(speech.end_time)}\n"
-            schedule_text += f"спикер - {speech.speaker.name}\n"
-            schedule_text += f"тема: {speech.title}\n\n"
-
-        update.message.reply_text(schedule_text)
-
+                update.message.reply_text(message, parse_mode='Markdown')
+        
     except Exception as e:
-        print(f"Error showing schedule: {e}")
-        update.message.reply_text("Произошла ошибка при загрузке программы")
+        logger.error(f"Error showing schedule: {e}")
+        update.message.reply_text("Произошла ошибка при загрузке программы мероприятий")
 
 
 def get_active_speech():
@@ -215,9 +248,11 @@ def show_speaker_questions(update: Update, context: CallbackContext) -> None:
 def subscribe_to_next_events(update: Update, context: CallbackContext) -> None:
     user = update.effective_user
 
-    active_events = Event.objects.filter(is_active=True)
+    event = Event.objects.filter(is_active=True).first()
+    if not event:
+        event = Event.objects.order_by("-date").first()
 
-    if not active_events.exists():
+    if not event:
         update.message.reply_text(
             "Сейчас нет ни одного мероприятия в базе, "
             "но организаторы смогут добавить тебя позже"
@@ -232,22 +267,17 @@ def subscribe_to_next_events(update: Update, context: CallbackContext) -> None:
         },
     )
 
-    subscription_created = 0
-    for event in active_events:
-        subscription, created = Subscription.objects.get_or_create(
-            participant=participant,
-            event=event,
-            defaults={
-                'notify_program_changes': True,
-                'notify_new_events': True,
-                'notify_reminders': True
-            }
-        )
+    subscription, created = Subscription.objects.get_or_create(
+        participant=participant,
+        event=event,
+        defaults={
+            'notify_program_changes': True,
+            'notify_new_events': True,
+            'notify_reminders': True
+        }
+    )
 
-        if created:
-            subscriptions_created += 1
-
-    if subscription_created > 0:
+    if created:
         update.message.reply_text(
             "Готово! Ты подписан на уведомления о:\n"
             "• Изменениях в программе\n"

@@ -1,8 +1,12 @@
+import logging
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.dispatch import receiver
-from django.db.models.signals  import pre_delete, post_save
+from django.db.models.signals import pre_delete, post_save
+
+
+logger = logging.getLogger(__name__)
 
 
 class Event(models.Model):
@@ -42,14 +46,16 @@ class Event(models.Model):
 
         super().save(*args, **kwargs)
 
-        if important_fields_changed:
+        try:
             from tg_bot.notifications import get_notification_service
             notification_service = get_notification_service()
-            if is_new:
-                change_description = f"Добавлено новое мероприятие '{self.title}'. Проверьте актуальное расписание."
-            else:
-                change_description = f"Изменения в мероприятии '{self.title}'. Проверьте актуальное расписание."
-            notification_service.send_program_change_notification(self, change_description)
+            if is_new and self.is_active:
+                notification_service.send_new_event_notification(self)
+            elif not is_new and important_fields_changed and self.is_active:
+                change_description = f"Изменение в конференции '{self.title}'. Проверьте актуальное распмсаниею"
+                notification_service.send_program_change_notification(self, change_description)
+        except Exception as e:
+            logger.error(f'Failed to send program change notification: {e}')
 
     def delete(self, *args, **kwargs):
         super().delete(*args, **kwargs)
@@ -213,6 +219,11 @@ class Notification(models.Model):
     is_sent = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     scheduled_for = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ('-created_at',)
+        verbose_name = 'Уведомление'
+        verbose_name_plural = 'Уведомления'
 
     def __str__(self):
         return f"{self.title} ({self.created_at.strftime('%d.%m.%Y %H:%M')})"
