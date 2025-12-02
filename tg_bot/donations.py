@@ -1,8 +1,10 @@
 from telegram import Update
 from telegram.ext import CallbackContext
+from django.utils import timezone
+from datacenter.models import Participant, Donation
+import logging
 
-from datacenter.models import Participant
-
+logger = logging.getLogger(__name__)
 
 DONATION_STATE_KEY = "donation_state"
 DONATION_AMOUNT_KEY = "donation_amount"
@@ -29,7 +31,7 @@ def handle_donation_message_if_active(update: Update, context: CallbackContext) 
     text_raw = update.message.text or ""
     text = text_raw.strip().lower()
 
-    if text in ("в другой раз", "не сейчас", "нет", "потом", "отмена"):
+    if text in ("в другой раз", "не сейчас", "нет", "потом", "отмена", "отменить"):
         context.user_data[DONATION_STATE_KEY] = None
         context.user_data.pop(DONATION_AMOUNT_KEY, None)
 
@@ -70,16 +72,44 @@ def handle_donation_message_if_active(update: Update, context: CallbackContext) 
                 "full_name": f"{user.first_name} {user.last_name or ''}".strip()
             }
         )
-        print(f"[DONATION INTENT] from {user.id} (@{user.username}): {amount} RUB")
-
-        update.message.reply_text(
-            f"Спасибо! Ты выбрал(а) поддержать митап на {amount} ₽\n\n"
-            "Ссылка для оплаты: https://example.com/donation\n"
+        
+        if not created:
+            update_fields = {}
+            if user.username and user.username != participant.username:
+                participant.username = user.username
+                update_fields['username'] = user.username
+            
+            full_name = f"{user.first_name} {user.last_name or ''}".strip()
+            if full_name and full_name != participant.full_name:
+                participant.full_name = full_name
+                update_fields['full_name'] = full_name
+            
+            if update_fields:
+                participant.save(update_fields=update_fields)
+        
+        donation = Donation.objects.create(
+            participant=participant,
+            amount=amount
         )
-    except Exception as e:
-        print(f"Error saving donation: {e}")
+        
+        logger.info(f"DONATION created: ID={donation.id}, from {user.id} (@{user.username}): {amount} RUB")
+        
         update.message.reply_text(
-            "Произошла ошибка при обработке доната. Попробуйте позже"
+            f"*Спасибо за поддержку!*\n\n"
+            f"Ты поддержал(а) митап на *{amount} ₽*\n\n"
+            f"Твой донат поможет сделать следующие мероприятия ещё лучше!\n\n"
+            f"*Детали доната:*\n"
+            f"• Сумма: {amount} ₽\n"
+            f"• Дата: {donation.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            f"• ID транзакции: {donation.id}\n\n"
+            f"_Если у тебя есть вопросы по донату, свяжись с организаторами_",
+            parse_mode='Markdown'
+        )
+
+    except Exception as e:
+        logger.error(f"Error saving donation: {e}", exc_info=True)
+        update.message.reply_text(
+            "Произошла ошибка при обработке доната. Попробуйте позже или свяжитесь с организаторами."
         )
     
     return True
